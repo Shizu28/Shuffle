@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #09090f;
+  --bg-secondary: #13131f;
+  --bg-card: #1a1a2e;
+  --accent: #8b5cf6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: var(--bg-primary);
+  color: white;
+  font-family: 'Inter', system-ui, sans-serif;
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #13131f;
+}
+::-webkit-scrollbar-thumb {
+  background: #4c1d95;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #7c3aed;
+}
+
+/* Selection */
+::selection {
+  background: rgba(139, 92, 246, 0.4);
+  color: white;
+}
+
+/* Focus outline */
+:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
+}
+
+@layer components {
+  .card {
+    @apply bg-bg-card rounded-2xl border border-white/5;
+  }
+
+  .card-elevated {
+    @apply bg-bg-elevated rounded-2xl border border-white/10;
+  }
+
+  .btn-primary {
+    @apply bg-accent hover:bg-accent-hover text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-white/10 hover:bg-white/20 text-white font-medium px-5 py-2.5 rounded-xl transition-all duration-200 inline-flex items-center gap-2;
+  }
+
+  .btn-ghost {
+    @apply text-white/70 hover:text-white hover:bg-white/10 font-medium px-3 py-2 rounded-xl transition-all duration-200 inline-flex items-center gap-2;
+  }
+
+  .input {
+    @apply bg-bg-elevated border border-white/10 focus:border-accent text-white placeholder:text-white/30 rounded-xl px-4 py-3 w-full outline-none transition-colors duration-200;
+  }
+
+  .label {
+    @apply text-sm font-medium text-white/70 mb-1.5 block;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-accent to-cyan-accent bg-clip-text text-transparent;
+  }
+
+  .glow {
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.3);
+  }
+
+  .glow-sm {
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
+  }
+}
