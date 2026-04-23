@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "Shuffle – Bibliothek Importer",
+  "version": "1.0.0",
+  "description": "Liest deine Watchlisten von Netflix, Disney+, Prime Video und Crunchyroll und importiert sie in Shuffle.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://www.netflix.com/*",
+    "https://www.disneyplus.com/*",
+    "https://www.amazon.de/*",
+    "https://www.amazon.com/*",
+    "https://www.primevideo.com/*",
+    "https://www.crunchyroll.com/*",
+    "http://localhost:3002/*",
+    "http://localhost:*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.netflix.com/*"],
+      "js": ["content/netflix.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.disneyplus.com/*"],
+      "js": ["content/disney-main.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.disneyplus.com/*"],
+      "js": ["content/disney.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.primevideo.com/*",
+        "https://www.amazon.de/gp/video/*",
+        "https://www.amazon.com/gp/video/*"
+      ],
+      "js": ["content/prime.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.crunchyroll.com/*"],
+      "js": ["content/crunchyroll.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["http://localhost:3002/*", "http://localhost:*/*"],
+      "js": ["content/shuffle-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Shuffle Importer"
+  }
+}

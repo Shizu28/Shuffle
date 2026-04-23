@@ -13,10 +13,13 @@ import {
   Shuffle,
   MonitorPlay,
   Minimize2,
+  Maximize2,
   Info,
   X,
   Clock,
   Timer,
+  Pause,
+  Play,
 } from "lucide-react";
 import { ShuffleSession, QueueEntry } from "@/types";
 import { tmdbPosterUrl } from "@/lib/tmdb";
@@ -43,10 +46,15 @@ export function ShufflePlayer({
   const [embedExpanded, setEmbedExpanded] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [durationElapsed, setDurationElapsed] = useState(0);
+  const [autoplay, setAutoplay] = useState(false);
+  const [paused, setPaused] = useState(false);
   const companionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Stable ref so effects don't go stale
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  // Stable refs so effects don't go stale
   const onMarkWatchedRef = useRef(onMarkWatched);
   onMarkWatchedRef.current = onMarkWatched;
+  const autoplayRef = useRef(autoplay);
+  autoplayRef.current = autoplay;
 
   const current: QueueEntry | undefined = session.queue[session.currentIndex];
   const progress = getProgress(session.queue);
@@ -58,13 +66,43 @@ export function ShufflePlayer({
   const durationMinutes = current?.duration ?? null;
   const durationTotal = durationMinutes ? durationMinutes * 60 : null;
 
-  // Reset everything when current item changes
+  // Reset on item change — auto-start embed or companion if autoplay is on
   useEffect(() => {
     setCountdown(null);
     setDurationElapsed(0);
-    setEmbedExpanded(false);
     if (companionPollRef.current) clearInterval(companionPollRef.current);
-  }, [current?.id]);
+
+    if (!current) { setEmbedExpanded(false); return; }
+
+    if (autoplayRef.current) {
+      const embed = getEmbedUrl(current.deepLink);
+      const platform = getPlatformById(current.platform);
+      if (embed) {
+        // Embeddable: auto-expand with autoplay
+        setEmbedExpanded(true);
+      } else {
+        setEmbedExpanded(false);
+        if (!platform?.supportsEmbed) {
+          // Non-embeddable: auto-open & maximize companion window
+          const url = current.deepLink;
+          const t = setTimeout(() => {
+            const win = openCompanionWindow(url);
+            if (!win) return;
+            try { win.moveTo(0, 0); win.resizeTo(screen.availWidth, screen.availHeight); } catch { /* restricted */ }
+            companionPollRef.current = setInterval(() => {
+              if (win.closed) {
+                if (companionPollRef.current) clearInterval(companionPollRef.current);
+                setCountdown((c) => (c === null ? 5 : c));
+              }
+            }, 500);
+          }, 400);
+          return () => clearTimeout(t);
+        }
+      }
+    } else {
+      setEmbedExpanded(false);
+    }
+  }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cleanup companion poll on unmount
   useEffect(() => {
@@ -73,9 +111,9 @@ export function ShufflePlayer({
     };
   }, []);
 
-  // Countdown tick â†’ auto-advance at 0
+  // Countdown tick → auto-advance at 0
   useEffect(() => {
-    if (countdown === null) return;
+    if (countdown === null || paused) return;
     if (countdown <= 0) {
       if (current) onMarkWatchedRef.current(current.id);
       setCountdown(null);
@@ -86,11 +124,11 @@ export function ShufflePlayer({
       1000
     );
     return () => clearTimeout(t);
-  }, [countdown, current?.id]);
+  }, [countdown, current?.id, paused]);
 
-  // Episode duration timer â€“ starts counting when embed opens
+  // Episode duration timer – starts counting when embed opens
   useEffect(() => {
-    if (!embedExpanded || !durationTotal || countdown !== null) return;
+    if (!embedExpanded || !durationTotal || countdown !== null || paused) return;
     setDurationElapsed(0);
     const iv = setInterval(() => {
       setDurationElapsed((prev) => {
@@ -103,14 +141,21 @@ export function ShufflePlayer({
       });
     }, 1000);
     return () => clearInterval(iv);
-  }, [current?.id, embedExpanded, durationTotal]);
+  }, [current?.id, embedExpanded, durationTotal, paused]);
 
-  // YouTube iframe API: video ended â†’ trigger countdown
+  // YouTube iframe API: video ended → trigger countdown
   useEffect(() => {
     const handle = (e: MessageEvent) => {
       if (e.origin !== "https://www.youtube.com") return;
       try {
         const d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+        // Player ready → send play command (backup for when autoplay=1 is blocked)
+        if (d?.event === "onReady") {
+          iframeRef.current?.contentWindow?.postMessage(
+            JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+            "https://www.youtube.com"
+          );
+        }
         const ended =
           (d?.event === "onStateChange" && d?.info === 0) ||
           (d?.event === "infoDelivery" && d?.info?.playerState === 0);
@@ -123,11 +168,12 @@ export function ShufflePlayer({
     return () => window.removeEventListener("message", handle);
   }, []);
 
-  // Open companion popup, auto-trigger countdown when user closes it
+  // Open companion popup, maximize, auto-trigger countdown when user closes it
   const handleOpenCompanion = useCallback((url: string) => {
     if (companionPollRef.current) clearInterval(companionPollRef.current);
     const win = openCompanionWindow(url);
     if (!win) return;
+    try { win.moveTo(0, 0); win.resizeTo(screen.availWidth, screen.availHeight); } catch { /* restricted */ }
     companionPollRef.current = setInterval(() => {
       if (win.closed) {
         if (companionPollRef.current) clearInterval(companionPollRef.current);
@@ -180,6 +226,25 @@ export function ShufflePlayer({
           />
         </div>
       </div>
+
+      {/* Paused Banner */}
+      {paused && (
+        <div className="card border-yellow-500/30 bg-yellow-500/10 p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Pause className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+            <p className="text-yellow-200/80 text-sm">
+              Shuffle ist <strong className="text-yellow-300">pausiert</strong> – Countdown und Timer sind eingefroren.
+            </p>
+          </div>
+          <button
+            onClick={() => setPaused(false)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/30 transition-colors flex-shrink-0"
+          >
+            <Play className="w-3.5 h-3.5" />
+            Fortsetzen
+          </button>
+        </div>
+      )}
 
       {/* Auto-advance Countdown Banner */}
       {countdown !== null && (
@@ -265,7 +330,7 @@ export function ShufflePlayer({
                     {fmtEp(current.season, current.episode)}
                   </span>
                   {current.episodeTitle && (
-                    <span className="text-white/50 text-sm">â€“ {current.episodeTitle}</span>
+                    <span className="text-white/50 text-sm">– {current.episodeTitle}</span>
                   )}
                 </div>
               )}
@@ -348,15 +413,39 @@ export function ShufflePlayer({
       {/* Inline Embed Player */}
       {embedUrl && embedExpanded && (
         <div className="space-y-2">
-          <div className="rounded-2xl overflow-hidden border border-white/10 bg-black aspect-video w-full">
+          <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black aspect-video w-full group">
             <iframe
-              src={embedUrl}
+              ref={iframeRef}
+              src={embedUrl + (embedUrl.includes("?") ? "&" : "?") + "autoplay=1"}
               title={current.title}
               className="w-full h-full"
               allowFullScreen
-              allow="autoplay; encrypted-media; picture-in-picture"
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"
+              onLoad={() => {
+                setTimeout(() => {
+                  const el = iframeRef.current;
+                  if (!el) return;
+                  // Backup play command in case autoplay=1 was blocked by browser
+                  el.contentWindow?.postMessage(
+                    JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+                    "https://www.youtube.com"
+                  );
+                  // Fullscreen only when autoplay mode is on
+                  if (autoplayRef.current) {
+                    el.requestFullscreen?.().catch(() => {});
+                  }
+                }, 800);
+              }}
             />
+            {/* Fullscreen button — always visible on hover */}
+            <button
+              onClick={() => iframeRef.current?.requestFullscreen?.().catch(() => {})}
+              className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 hover:bg-black/90 text-white rounded-lg p-1.5"
+              title="Vollbild (F)"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Episode duration progress */}
@@ -391,42 +480,94 @@ export function ShufflePlayer({
         <div className="card p-3 flex items-start gap-3 border-white/5">
           <Info className="w-4 h-4 text-white/30 flex-shrink-0 mt-0.5" />
           <p className="text-white/40 text-xs leading-relaxed">
-            <strong className="text-white/60">{getPlatformName(current.platform)}</strong> nutzt
-            DRM-Kopierschutz – aus Browser-Sicherheitsgründen nicht einbettbar. Das
-            Companion-Fenster öffnet die Plattform neben Shuffle. Wenn du es{" "}
-            <strong className="text-white/60">schließt</strong>, startet automatisch der
-            Weiter-Countdown.
+            {isChannelUrl ? (
+              <>
+                <strong className="text-white/60">YouTube-Kanal-Seiten</strong> lassen sich nicht
+                direkt einbetten – nur einzelne Videos oder Playlists funktionieren als Embed. Öffne
+                den Kanal im Companion-Fenster und kopiere von dort eine{" "}
+                <strong className="text-white/60">Playlist-URL</strong> (z.B.{" "}
+                <span className="font-mono text-white/50">youtube.com/playlist?list=PL…</span>),
+                um sie hier einzubetten.
+              </>
+            ) : (
+              <>
+                <strong className="text-white/60">{getPlatformName(current.platform)}</strong> nutzt
+                DRM-Kopierschutz – aus Browser-Sicherheitsgründen nicht einbettbar. Das
+                Companion-Fenster öffnet die Plattform neben Shuffle. Wenn du es{" "}
+                <strong className="text-white/60">schließt</strong>, startet automatisch der
+                Weiter-Countdown.
+              </>
+            )}
           </p>
         </div>
       )}
 
       {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => prevIndex >= 0 && onGoToIndex(prevIndex)}
-          disabled={prevIndex < 0}
-          className="btn-ghost disabled:opacity-30"
-        >
-          <SkipBack className="w-4 h-4" />
-          Zurück
-        </button>
+      <div className="flex flex-col gap-3">
+        {/* Pause / Resume */}
+        <div className="flex items-center justify-center">
+          <button
+            onClick={() => setPaused((v) => !v)}
+            className={cn(
+              "flex items-center gap-2 text-sm px-5 py-2 rounded-full border transition-colors font-medium",
+              paused
+                ? "border-yellow-500/60 bg-yellow-500/15 text-yellow-300 hover:bg-yellow-500/25"
+                : "border-white/15 bg-white/5 text-white/60 hover:text-white hover:border-white/30"
+            )}
+          >
+            {paused ? (
+              <><Play className="w-4 h-4" /> Shuffle fortsetzen</>
+            ) : (
+              <><Pause className="w-4 h-4" /> Shuffle pausieren</>
+            )}
+          </button>
+        </div>
+
+        {/* Autoplay toggle */}
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => setAutoplay((v) => !v)}
+            className={cn("flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition-colors", autoplay ? "border-accent/60 bg-accent/10 text-accent" : "border-white/10 bg-white/5 text-white/40 hover:text-white/60")}
+          >
+            <div className={cn("w-7 h-4 rounded-full relative transition-colors flex-shrink-0", autoplay ? "bg-accent" : "bg-white/20")}>
+              <div className={cn("absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform", autoplay ? "translate-x-3.5" : "translate-x-0.5")} />
+            </div>
+            Autoplay
+          </button>
+          {autoplay && (
+            <span className="text-white/30 text-xs">
+              {embedUrl ? "Player öffnet & startet automatisch" : "Companion-Fenster öffnet automatisch"}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => prevIndex >= 0 && onGoToIndex(prevIndex)}
+            disabled={prevIndex < 0}
+            className="btn-ghost disabled:opacity-30"
+          >
+            <SkipBack className="w-4 h-4" />
+            Zurück
+          </button>
 
         <button
-          onClick={() => setShowQueue(!showQueue)}
-          className="btn-ghost text-accent"
-        >
-          <Shuffle className="w-4 h-4" />
-          Queue ({session.queue.length - progress.watched} übrig)
-        </button>
+            onClick={() => setShowQueue(!showQueue)}
+            className="btn-ghost text-accent"
+          >
+            <Shuffle className="w-4 h-4" />
+            Queue ({session.queue.length - progress.watched} übrig)
+          </button>
 
-        <button
-          onClick={() => nextIndex >= 0 && onGoToIndex(nextIndex)}
-          disabled={nextIndex < 0}
-          className="btn-ghost disabled:opacity-30"
-        >
-          Weiter
-          <SkipForward className="w-4 h-4" />
-        </button>
+          <button
+            onClick={() => nextIndex >= 0 && onGoToIndex(nextIndex)}
+            disabled={nextIndex < 0}
+            className="btn-ghost disabled:opacity-30"
+          >
+            Weiter
+            <SkipForward className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Queue List */}

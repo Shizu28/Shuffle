@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Shuffle, Home, Search, PlusCircle, Settings } from "lucide-react";
+import { Shuffle, Home, Search, PlusCircle, Settings, Library } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Meine Playlists", icon: Home },
   { href: "/search", label: "Suchen", icon: Search },
+  { href: "/import", label: "Bibliothek", icon: Library },
   { href: "/playlist/new", label: "Neue Playlist", icon: PlusCircle },
   { href: "/settings", label: "Einstellungen", icon: Settings },
 ];

@@ -157,3 +157,25 @@ export interface SearchFilters {
   tab: SearchTab;
   query: string;
 }
+
+// ─── Browser Extension Import ───────────────────────────────────────────────────
+
+export type ImportPlatform = "netflix" | "disney" | "prime" | "crunchyroll";
+
+export interface ImportedLibraryItem {
+  id: string;
+  title: string;
+  platform: ImportPlatform;
+  deepLink: string;
+  type: "movie" | "tv" | "unknown";
+  thumbnailUrl?: string;
+  year?: string;
+  scrapedAt: number;
+}
+
+export interface ImportedLibrary {
+  [platform: string]: {
+    items: ImportedLibraryItem[];
+    scrapedAt: number;
+  };
+}

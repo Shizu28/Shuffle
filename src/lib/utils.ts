@@ -69,13 +69,39 @@ export function isYouTubeChannelUrl(url?: string): boolean {
 
 /** Öffnet eine URL in einem kontrollierten Companion-Popup-Fenster. Gibt das Window-Objekt zurück. */
 export function openCompanionWindow(url: string): Window | null {
-  const width = 1200;
-  const height = 720;
-  const left = Math.max(0, Math.round((screen.width - width) / 2));
-  const top = Math.max(0, Math.round((screen.height - height) / 2));
-  return window.open(
-    url,
+  let targetUrl = url;
+
+  // Netflix: info page → direct player
+  targetUrl = targetUrl.replace(/netflix\.com\/title\/(\d+)/, "netflix.com/watch/$1");
+
+  // Prime Video: detail page → direct player
+  // primevideo.com/detail/ASIN  →  primevideo.com/detail/ASIN?autoplay=1
+  // amazon.de/gp/video/detail/ASIN  →  same with autoplay
+  if (/primevideo\.com\/detail\/|amazon\.[a-z.]+\/gp\/video\/detail\//.test(targetUrl)) {
+    const sep = targetUrl.includes("?") ? "&" : "?";
+    targetUrl = `${targetUrl.split("?")[0]}${sep}autoplay=1`;
+  }
+
+  // Disney+: /de-de/series/slug/ID or /de-de/movies/slug/ID
+  // → /play/ID  (direct player deeplink)
+  if (/disneyplus\.com\/(de-de\/|en-gb\/|)(?:series|movies)\/[^/]+\/([A-Za-z0-9]{8,})/.test(targetUrl)) {
+    const m = targetUrl.match(/disneyplus\.com\/(?:[a-z-]+\/)?(?:series|movies)\/[^/]+\/([A-Za-z0-9]{8,})/);
+    if (m) targetUrl = `https://www.disneyplus.com/play/${m[1]}`;
+  }
+  // Disney+ search fallback already has correct URL, leave as-is
+
+  const width = screen.availWidth;
+  const height = screen.availHeight;
+  const win = window.open(
+    targetUrl,
     "shuffle-companion",
-    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    `width=${width},height=${height},left=0,top=0,resizable=yes,scrollbars=yes`
   );
+  if (win) {
+    try {
+      win.moveTo(0, 0);
+      win.resizeTo(screen.availWidth, screen.availHeight);
+    } catch (_) {}
+  }
+  return win;
 }
