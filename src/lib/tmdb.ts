@@ -6,6 +6,7 @@ export function tmdbPosterUrl(
   size: "w185" | "w342" | "w500" | "w780" | "original" = "w342"
 ): string {
   if (!path) return "/placeholder-poster.svg";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
   return `${TMDB_IMAGE_BASE}/${size}${path}`;
 }
 
@@ -14,6 +15,7 @@ export function tmdbBackdropUrl(
   size: "w300" | "w780" | "w1280" | "original" = "w1280"
 ): string {
   if (!path) return "/placeholder-backdrop.svg";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
   return `${TMDB_IMAGE_BASE}/${size}${path}`;
 }
 

@@ -82,13 +82,12 @@ export function openCompanionWindow(url: string): Window | null {
     targetUrl = `${targetUrl.split("?")[0]}${sep}autoplay=1`;
   }
 
-  // Disney+: /de-de/series/slug/ID or /de-de/movies/slug/ID
-  // → /play/ID  (direct player deeplink)
-  if (/disneyplus\.com\/(de-de\/|en-gb\/|)(?:series|movies)\/[^/]+\/([A-Za-z0-9]{8,})/.test(targetUrl)) {
-    const m = targetUrl.match(/disneyplus\.com\/(?:[a-z-]+\/)?(?:series|movies)\/[^/]+\/([A-Za-z0-9]{8,})/);
-    if (m) targetUrl = `https://www.disneyplus.com/play/${m[1]}`;
+  // Disney+: series/movies detail pages work fine as direct URLs.
+  // Only browse/entity-{uuid} URLs need special handling (SPA-only routes).
+  if (/disneyplus\.com/.test(targetUrl) && /browse\/entity-/.test(targetUrl)) {
+    const path = targetUrl.replace(/^https?:\/\/[^/]+/, "");
+    targetUrl = `https://www.disneyplus.com/#shuffle=${encodeURIComponent(path)}`;
   }
-  // Disney+ search fallback already has correct URL, leave as-is
 
   const width = screen.availWidth;
   const height = screen.availHeight;

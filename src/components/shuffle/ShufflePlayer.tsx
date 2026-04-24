@@ -70,6 +70,7 @@ export function ShufflePlayer({
   useEffect(() => {
     setCountdown(null);
     setDurationElapsed(0);
+    setPaused(false);
     if (companionPollRef.current) clearInterval(companionPollRef.current);
 
     if (!current) { setEmbedExpanded(false); return; }
@@ -80,24 +81,22 @@ export function ShufflePlayer({
       if (embed) {
         // Embeddable: auto-expand with autoplay
         setEmbedExpanded(true);
-      } else {
+      } else if (!platform?.supportsEmbed) {
+        // Non-embeddable (Netflix, Disney+, Prime, …): auto-open companion window
         setEmbedExpanded(false);
-        if (!platform?.supportsEmbed) {
-          // Non-embeddable: auto-open & maximize companion window
-          const url = current.deepLink;
-          const t = setTimeout(() => {
-            const win = openCompanionWindow(url);
-            if (!win) return;
-            try { win.moveTo(0, 0); win.resizeTo(screen.availWidth, screen.availHeight); } catch { /* restricted */ }
-            companionPollRef.current = setInterval(() => {
-              if (win.closed) {
-                if (companionPollRef.current) clearInterval(companionPollRef.current);
-                setCountdown((c) => (c === null ? 5 : c));
-              }
-            }, 500);
-          }, 400);
-          return () => clearTimeout(t);
-        }
+        const url = current.deepLink;
+        const t = setTimeout(() => {
+          const win = openCompanionWindow(url);
+          if (!win) return;
+          try { win.moveTo(0, 0); win.resizeTo(screen.availWidth, screen.availHeight); } catch { /* restricted */ }
+          companionPollRef.current = setInterval(() => {
+            if (win.closed) {
+              if (companionPollRef.current) clearInterval(companionPollRef.current);
+              setCountdown((c) => (c === null ? 5 : c));
+            }
+          }, 500);
+        }, 400);
+        return () => clearTimeout(t);
       }
     } else {
       setEmbedExpanded(false);

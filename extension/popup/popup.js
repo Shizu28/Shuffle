@@ -211,13 +211,18 @@ async function scrapeDisneyViaReact(tabId) {
           const isMovie = /\bfilm\b|\bmovie\b/.test(lbl);
           const isSeries = /\bseries\b|\bshow\b|\bserie\b/.test(lbl);
 
+          const href = card.getAttribute("href") || "";
+          const deepLink = href
+            ? `https://www.disneyplus.com${href.startsWith("/") ? href : "/" + href}`
+            : `https://www.disneyplus.com/de-de/browse/entity-${rawId}`;
+
           const img = card.querySelector("img");
 
           items.push({
             id: `disney-${rawId}`,
             title: title || rawId,
             platform: "disney",
-            deepLink: `https://www.disneyplus.com/play/${rawId}`,
+            deepLink: deepLink,
             type: isMovie ? "movie" : isSeries ? "tv" : "unknown",
             thumbnailUrl: img?.src || undefined,
             scrapedAt: Date.now(),

@@ -180,4 +180,50 @@
     });
     return _send.apply(this, args);
   };
+
+  // ── SPA Navigation handler (called from autoplay.js via CustomEvent) ──────
+  // This runs in MAIN world, so window.dispatchEvent reaches the real page router.
+  document.addEventListener("__shuffle_navigate", function (e) {
+    const path = e.detail;
+    if (!path || typeof path !== "string") return;
+
+    console.debug("[Shuffle] MAIN world navigating to:", path);
+
+    // Strategy 1: Next.js router (unlikely for Disney+ but free to try)
+    try {
+      if (window.next && window.next.router) {
+        window.next.router.push(path);
+        return;
+      }
+    } catch (_) {}
+
+    // Strategy 2: Look for common router globals (React Router, etc.)
+    for (const key of ["__router", "_router", "appRouter", "router"]) {
+      try {
+        const r = window[key];
+        if (r && typeof r.navigate === "function") { r.navigate(path); return; }
+        if (r && typeof r.push === "function") { r.push(path); return; }
+      } catch (_) {}
+    }
+
+    // Capture BEFORE pushState so we can detect if navigation worked.
+    const beforePath = location.pathname;
+
+    // Strategy 3: pushState + popstate — in MAIN world, window IS the real page window.
+    // React Router v5/v6 and most SPA routers listen for popstate on window.
+    history.pushState({}, "", path);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: history.state }));
+
+    // Strategy 4: if after 2 s the URL reverted back to the page we started on
+    // (React Router rejected the navigation), try a second dispatch.
+    // NEVER call location.assign() for entity browse URLs — they are SPA-only routes
+    // and a direct server load will fail / show the homepage.
+    setTimeout(function () {
+      if (location.pathname === beforePath) {
+        // URL reverted — try once more with a fresh popstate
+        history.pushState({}, "", path);
+        window.dispatchEvent(new PopStateEvent("popstate", { state: history.state }));
+      }
+    }, 2000);
+  });
 })();

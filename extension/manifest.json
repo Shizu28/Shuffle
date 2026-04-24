@@ -52,6 +52,17 @@
       "matches": ["http://localhost:3002/*", "http://localhost:*/*"],
       "js": ["content/shuffle-bridge.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.netflix.com/watch/*",
+        "https://www.disneyplus.com/*",
+        "https://www.primevideo.com/detail/*",
+        "https://www.amazon.de/gp/video/detail/*",
+        "https://www.amazon.com/gp/video/detail/*"
+      ],
+      "js": ["content/autoplay.js"],
+      "run_at": "document_idle"
     }
   ],
   "action": {
